@@ -1,0 +1,49 @@
+name: Deploy
+
+
+on:
+  push:
+    branches: ['main', 'develop']
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - '*' # Trigger for pull requests targeting any branch
+    types:
+      - opened  # When a new pull request is created.
+      - synchronize # When commits are pushed to a pull request branch.
+      - reopened #  When a previously closed pull request is reopened.  
+
+env:
+  IMAGE_NAME: test-nodejs
+jobs:
+  build:
+    if: startsWith(github.event.pull_request.head.ref, 'feature/') #checks if the source branch (the branch from which the PR is created) starts with feature/. If this condition is not met, the job will be skipped.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN }}
+          
+      - name: Set release date of image
+        id: version
+        run: |
+          echo "release_date=$(date -d "today" '+%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Name Docker Image
+        id: meta-docker-naming
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: |
+            ${{ steps.meta-docker-naming.outputs.tags }}
+            ${{ steps.meta-docker-naming.outputs.tags }}.${{ steps.version.outputs.release_date }}
